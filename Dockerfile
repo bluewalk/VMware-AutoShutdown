@@ -17,4 +17,5 @@ WORKDIR /app
 COPY --from=publish /app/out ./
 COPY shutdown.ps1 ./
 
-ENTRYPOINT ["dotnet", "Net.Bluewalk.VMware.AutoShutdown.dll"]
+#ENTRYPOINT ["dotnet", "Net.Bluewalk.VMware.AutoShutdown.dll"]
+CMD ["dotnet", "Net.Bluewalk.VMware.AutoShutdown.dll"]

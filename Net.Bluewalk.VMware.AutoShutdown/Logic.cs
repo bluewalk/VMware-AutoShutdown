@@ -29,9 +29,11 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 });
 
             _timeoutTimer = new Timer(_config.TimeoutSeconds);
-            _timeoutTimer.Elapsed += (sender, args) =>
+            _timeoutTimer.Elapsed += async (sender, args) =>
             {
                 _timeoutTimer.Stop();
+
+                await Report("SHUTDOWN_INITIATED");
                 
                 var proc = new ProcessStartInfo()
                 {
@@ -54,16 +56,33 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         /// Process MQTT messages
         /// </summary>
         /// <param name="e"></param>
-        private void MqttClientOnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
+        private async Task MqttClientOnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
             if (!e.ApplicationMessage.ToString()
                 .Equals(_config.Mqtt.ShutdownTopic, StringComparison.InvariantCultureIgnoreCase)) return;
-            
+
             var message = e.ApplicationMessage.ConvertPayloadToString();
             if (message.Equals(_config.Mqtt.ShutdownPayload, StringComparison.InvariantCultureIgnoreCase))
+            {
+                await Report("SHUTDOWN_COUNTDOWN_INITIATED");
                 _timeoutTimer.Start();
+            }
             else
+            {
+                await Report("SHUTDOWN_COUNTDOWN_ABORTED");
                 _timeoutTimer.Stop();
+            }
+        }
+
+        private async Task Report(string message)
+        {
+            var msg = new MqttApplicationMessageBuilder()
+                .WithTopic(_config.Mqtt.ReportTopic)
+                .WithPayload(message)
+                .WithExactlyOnceQoS()
+                .Build();
+
+            await _mqttClient.PublishAsync(msg);
         }
 
         /// <summary>
