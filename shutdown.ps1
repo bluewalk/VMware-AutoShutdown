@@ -1,3 +1,5 @@
+# Courtesy of https://github.com/vegbrasil/dockerfiles/tree/master/esxi-shutdown
+
 # Functions
 function outputLog($string) {
     $time = Get-Date -format "dd/MM/yyyy HH:mm:ss"
