@@ -2,16 +2,26 @@
 This docker image will monitor a given MQTT topic for given payload and will initiate a gracefull shutdown of an ESXi server (and VM's) upon receiving that payload (after given timeout).
 
 __Usecase example__
+
 I use it to monitor my powerline, upon failure an ESP will publish a payload to a MQTT topic and after 5 minutes my ESXi server will shutdown to prevent dataloss (learned from experience)
 
 ## How to use
 Run the docker image as followed
 ```bash
-docker run -d --name nukibridge2mqtt bluewalk/vmware-auto-shutdown [-e ...]
+docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
+```
+You can specify configuration items using environment variables as displayed below, e.g.
+```
+docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown -e TIMEOUT_SECONDS=180 -e MQTT_HOST=192.168.1.2
+```
+
+You can alter the `log4net` settings by mapping a local `log4net.config` file to `/app/log4.net.config`, e.g.
+```
+docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...] -v [configfile]:/app/log4net.config
 ```
 
 ## Environment variables
-Environment variable | Description | Default when empty |
+|Environment variable|Description|Default when empty|
 |-|-|-|
 |MQTT_HOST|MQTT Host|`127.0.0.1`|
 |MQTT_PORT|MQTT Port|`1883`|
