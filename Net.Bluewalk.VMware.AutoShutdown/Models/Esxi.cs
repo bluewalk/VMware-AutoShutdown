@@ -10,7 +10,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown.Models
         public string Password { get; set; }
         [EnvironmentVariable(Name = "ESXI_IP")]
         public string Ip { get; set; }
-        [EnvironmentVariable(Name = "ESXI_TIMEOUT")]
+        [EnvironmentVariable(Name = "ESXI_TIMEOUT", Default = "300")]
         public string Timeout { get; set; }
         [EnvironmentVariable(Name = "ESXI_VMTOSKIP")]
         public string VmNameToSkip { get; set; }

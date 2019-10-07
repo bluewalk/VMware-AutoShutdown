@@ -13,11 +13,11 @@ namespace Net.Bluewalk.VMware.AutoShutdown.Models
         [EnvironmentVariable(Name = "MQTT_PASSWORD")]
         public string Password { get; set; }
         
-        [EnvironmentVariable(Name = "MQTT_SHUTDOWN_TOPIC")]
+        [EnvironmentVariable(Name = "MQTT_SHUTDOWN_TOPIC", Default = "bluewalk/shutdown")]
         public string ShutdownTopic { get; set; }
-        [EnvironmentVariable(Name = "MQTT_SHUTDOWN_PAYLOAD")]
+        [EnvironmentVariable(Name = "MQTT_SHUTDOWN_PAYLOAD", Default = "yes")]
         public string ShutdownPayload { get; set; }
-        [EnvironmentVariable(Name = "MQTT_REPORT_TOPIC")]
+        [EnvironmentVariable(Name = "MQTT_REPORT_TOPIC", Default = "bluewalk/shutdown/report")]
         public string ReportTopic { get; set; }
     }
 }
