@@ -16,6 +16,9 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         private readonly IManagedMqttClient _mqttClient;
         private readonly Timer _timeoutTimer;
         
+        /// <summary>
+        /// Constructor
+        /// </summary>
         public Logic()
         {
             _config = (Config)typeof(Config).FromEnvironment();
