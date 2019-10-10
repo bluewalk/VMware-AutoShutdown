@@ -12,7 +12,7 @@ docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
 ```
 You can specify configuration items using environment variables as displayed below, e.g.
 ```
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown -e TIMEOUT_SECONDS=180 -e MQTT_HOST=192.168.1.2
+docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2
 ```
 
 You can alter the `log4net` settings by mapping a local `log4net.config` file to `/app/log4.net.config`, e.g.
@@ -23,16 +23,20 @@ docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
 ## Environment variables
 |Environment variable|Description|Default when empty|
 |-|-|-|
-|MQTT_HOST|MQTT Host|`127.0.0.1`|
-|MQTT_PORT|MQTT Port|`1883`|
-|MQTT_USERNAME|MQTT Username|null|
-|MQTT_PASSWORD|MQTT Password|null|
-|MQTT_SHUTDOWN_TOPIC|MQTT Topic to watch|`bluewalk/shutdown`|
-|MQTT_SHUTDOWN_PAYLOAD|MQTT Payload to match for shutdown|`yes`|
-|MQTT_REPORT_TOPIC|MQTT Topic to report current status|`bluewalk/shutdown/report`|
-|ESXI_USERNAME|ESXi username|null|
-|ESXI_PASSWORD|ESXi password|null|
-|ESXI_IP|ESXi IP address|null|
-|ESXI_TIMEOUT|ESXi shutdown VM's timeout, after passing will shutdown host|`300`|
-|ESXI_VMTOSKIP|ESXi VM's to skip during shutdown|null|
-|TIMEOUT_SECONDS|Timeout in seconds before initiating shutdown (grace period)|`300`|
+|`Config:Mqtt:Host`|MQTT Host|`127.0.0.1`|
+|`Config:Mqtt:Port`|MQTT Port|`1883`|
+|`Config:Mqtt:Username`|MQTT Username|null|
+|`Config:Mqtt:Password`|MQTT Password|null|
+|`Config:Mqtt:ShutdownTpic`|MQTT Topic to watch|`bluewalk/shutdown`|
+|`Config:Mqtt:ShutdownPayload`|MQTT Payload to match for shutdown|`yes`|
+|`Config:Mqtt:ReportTopic`|MQTT Topic to report current status|`bluewalk/shutdown/report`|
+|`Config:Esxi:Username`|ESXi username|null|
+|`Config:Esxi:Password`|ESXi password|null|
+|`Config:Esxi:Ip`|ESXi IP address|null|
+|`Config:Esxi:Timeout`|ESXi shutdown VM's timeout, after passing will shutdown host|`300`|
+|`Config:Esxi:VmToSkip`|ESXi VM's to skip during shutdown|null|
+|`Config:TimeoutSeconds`|Timeout in seconds before initiating shutdown (grace period)|`300`|
+
+Other environment variables regarding logging are available with the `Logging` prefix. For more information see [Microsoft Documentation](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/logging/?view=aspnetcore-3.0#create-filter-rules-in-configuration)
+
+__Example:__ To get Debug logs, add the following environment variable `Logging:Console:LogLevel:Net.Bluewalk=Debug`
