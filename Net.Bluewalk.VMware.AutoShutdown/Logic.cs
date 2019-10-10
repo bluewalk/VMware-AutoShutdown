@@ -1,57 +1,87 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MQTTnet;
 using MQTTnet.Client.Options;
 using MQTTnet.Extensions.ManagedClient;
-using Net.Bluewalk.DotNetEnvironmentExtensions;
 using Net.Bluewalk.VMware.AutoShutdown.Models;
+using Timer = System.Timers.Timer;
 
 namespace Net.Bluewalk.VMware.AutoShutdown
 {
-    public class Logic
+    public class Logic : IHostedService
     {
         private readonly Config _config;
         private readonly IManagedMqttClient _mqttClient;
         private readonly Timer _timeoutTimer;
-        
+        private readonly ILogger _logger;
+
         /// <summary>
         /// Constructor
         /// </summary>
-        public Logic()
+        public Logic(ILogger<Logic> logger, IOptions<Config> config)
         {
-            _config = (Config)typeof(Config).FromEnvironment();
-            
+            _logger = logger;
+            _config = config.Value;
+
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.UseApplicationMessageReceivedHandler(MqttClientOnApplicationMessageReceived);
             _mqttClient.UseConnectedHandler(async e =>
-                {
-                    await _mqttClient.SubscribeAsync(new TopicFilterBuilder().WithTopic(_config.Mqtt.ShutdownTopic)
-                        .Build());
-                });
+            {
+                _logger.LogInformation("Connected to MQTT server");
 
-            _timeoutTimer = new Timer(_config.TimeoutSeconds);
+                await _mqttClient.SubscribeAsync(new TopicFilterBuilder().WithTopic(_config.Mqtt.ShutdownTopic)
+                    .Build());
+            });
+            _mqttClient.UseDisconnectedHandler(e =>
+            {
+                if (e.Exception != null && !e.ClientWasConnected)
+                    _logger.LogError(e.Exception, "Unable to connect to MQTT server");
+
+                if (e.Exception != null && e.ClientWasConnected)
+                    _logger.LogError("Disconnected from connect to MQTT server with error", e.Exception);
+
+                if (e.Exception == null && e.ClientWasConnected)
+                    _logger.LogInformation("Disconnected from MQTT server");
+            });
+
+            _timeoutTimer = new Timer(_config.TimeoutSeconds * 1000);
             _timeoutTimer.Elapsed += async (sender, args) =>
             {
                 _timeoutTimer.Stop();
 
                 await Report("SHUTDOWN_INITIATED");
-                
-                var proc = new ProcessStartInfo()
+
+                _logger.LogInformation("Starting VMware PowerCLI shutdown script");
+                var proc = new Process()
                 {
-                    Arguments = "-c shutdown.ps1",
-                    EnvironmentVariables =
+                    StartInfo = new ProcessStartInfo()
                     {
-                        {"esxiusername", _config.Esxi.Username},
-                        {"esxipassword", _config.Esxi.Password},
-                        {"esxiip", _config.Esxi.Ip},
-                        {"esxitimeout", _config.Esxi.Timeout},
-                        {"esxivmnametoskip", _config.Esxi.VmNameToSkip}
-                    },
-                    FileName = "/usr/bin/pwsh"
+                        Arguments = "-c shutdown.ps1",
+                        EnvironmentVariables =
+                        {
+                            {"esxiusername", _config.Esxi.Username},
+                            {"esxipassword", _config.Esxi.Password},
+                            {"esxiip", _config.Esxi.Ip},
+                            {"esxitimeout", _config.Esxi.Timeout},
+                            {"esxivmnametoskip", _config.Esxi.VmNameToSkip}
+                        },
+                        FileName = "/usr/bin/pwsh",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false
+                    }
                 };
-                Process.Start(proc);
+                proc.OutputDataReceived += (o, eventArgs) => _logger.LogInformation(eventArgs.Data);
+                proc.ErrorDataReceived += (o, eventArgs) => _logger.LogError(eventArgs.Data);
+
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+                proc.WaitForExit();
             };
         }
 
@@ -61,8 +91,10 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         /// <param name="e"></param>
         private async Task MqttClientOnApplicationMessageReceived(MqttApplicationMessageReceivedEventArgs e)
         {
-            if (!e.ApplicationMessage.ToString()
-                .Equals(_config.Mqtt.ShutdownTopic, StringComparison.InvariantCultureIgnoreCase)) return;
+            _logger.LogInformation("Received MQTT message on topic {0}", e.ApplicationMessage.Topic);
+
+            if (!e.ApplicationMessage.Topic.Equals(_config.Mqtt.ShutdownTopic,
+                StringComparison.InvariantCultureIgnoreCase)) return;
 
             var message = e.ApplicationMessage.ConvertPayloadToString();
             if (message.Equals(_config.Mqtt.ShutdownPayload, StringComparison.InvariantCultureIgnoreCase))
@@ -77,8 +109,15 @@ namespace Net.Bluewalk.VMware.AutoShutdown
             }
         }
 
+        /// <summary>
+        /// Method to report the status of the process
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
         private async Task Report(string message)
         {
+            _logger.LogInformation("Reporting status {0}", message);
+
             var msg = new MqttApplicationMessageBuilder()
                 .WithTopic(_config.Mqtt.ReportTopic)
                 .WithPayload(message)
@@ -91,9 +130,12 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         /// <summary>
         /// Start logic
         /// </summary>
+        /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task Start()
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("Starting logic");
+
             var clientOptions = new MqttClientOptionsBuilder()
                 .WithClientId($"VMwareAutoShutdown-{Environment.MachineName}-{Environment.UserName}")
                 .WithTcpServer(_config.Mqtt.Host, _config.Mqtt.Port);
@@ -106,16 +148,27 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 .WithAutoReconnectDelay(TimeSpan.FromSeconds(5))
                 .WithClientOptions(clientOptions);
 
+            _logger.LogInformation("Connecting to MQTT");
             await _mqttClient.StartAsync(managedOptions.Build());
         }
-        
+
         /// <summary>
         /// Stop logic
         /// </summary>
+        /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public async Task Stop()
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
+            _logger.LogInformation("Disconnecting from MQTT server");
             await _mqttClient?.StopAsync();
+        }
+
+        /// <summary>
+        /// Dispose
+        /// </summary>
+        public void Dispose()
+        {
+
         }
     }
 }

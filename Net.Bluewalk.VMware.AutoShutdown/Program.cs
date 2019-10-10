@@ -1,43 +1,50 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Net.Bluewalk.VMware.AutoShutdown.Models;
 
 namespace Net.Bluewalk.VMware.AutoShutdown
 {
     class Program
     {
-        // AutoResetEvent to signal when to exit the application.
-        private static readonly AutoResetEvent WaitHandle = new AutoResetEvent(false);
-        
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             var version = FileVersionInfo.GetVersionInfo(typeof(Program).Assembly.Location).ProductVersion;
             Console.WriteLine($"VMware AutoShutdown version {version}");
-            Console.WriteLine("https://github.com/bluewalk/bunq-ex\n");
-            
-            var logic = new Logic();
-            
-            // Fire and forget
-            Task.Run(async () =>
-            {
-                await logic.Start();
-                WaitHandle.WaitOne();
-            });
+            Console.WriteLine("https://github.com/bluewalk/VMware-AutoShutdown\n");
 
-            // Handle Control+C or Control+Break
-            Console.CancelKeyPress += async (o, e) =>
-            {
-                Console.WriteLine("Exit");
 
-                await logic.Stop();
+            var builder = new HostBuilder()
+                .ConfigureAppConfiguration((hostingContext, config) =>
+                {
+                    config.AddEnvironmentVariables();
 
-                // Allow the manin thread to continue and exit...
-                WaitHandle.Set();
-            };
+                    if (args != null)
+                    {
+                        config.AddCommandLine(args);
+                    }
+                })
+                .ConfigureServices((hostContext, services) =>
+                {
+                    services.AddOptions();
 
-            // Wait
-            WaitHandle.WaitOne();
+                    services.Replace(ServiceDescriptor.Singleton(typeof(ILogger<>), typeof(DateTimeLogger<>)));
+
+                    services.Configure<Config>(hostContext.Configuration.GetSection("Config"));
+
+                    services.AddSingleton<IHostedService, Logic>();
+                })
+                .ConfigureLogging((hostingContext, logging) => {
+                    logging.AddConfiguration(hostingContext.Configuration.GetSection("Logging"));
+                    logging.AddConsole();
+                });
+
+            await builder.RunConsoleAsync();
         }
     }
 }
