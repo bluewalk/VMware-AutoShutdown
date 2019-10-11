@@ -8,16 +8,15 @@ I use it to monitor my powerline, upon failure an ESP will publish a payload to 
 ## How to use
 Run the docker image as followed
 ```bash
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
+docker run -d --name vmware-auto-shutdown [-e ...] bluewalk/vmware-auto-shutdown
 ```
 You can specify configuration items using environment variables as displayed below, e.g.
 ```
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2
+docker run -d --name vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2 bluewalk/vmware-auto-shutdown
 ```
-
-You can alter the `log4net` settings by mapping a local `log4net.config` file to `/app/log4.net.config`, e.g.
+If running on a Raspberry Pi you can use the GPIO to minotor the powerine (eg with an 5v adapter in a non UPS backed socket), when falling (eg power-loss) this will initate the countdown. In order for this to work you need to map /sys to the container.
 ```
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...] -v [configfile]:/app/log4net.config
+docker run -d --name vmware-auto-shutdown -v /sys:/sys -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2 -e Config:GpioPin=5 bluewalk/vmware-auto-shutdown
 ```
 
 ## Environment variables
@@ -36,6 +35,7 @@ docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
 |`Config:Esxi:Timeout`|ESXi shutdown VM's timeout, after passing will shutdown host|`300`|
 |`Config:Esxi:VmToSkip`|ESXi VM's to skip during shutdown|null|
 |`Config:TimeoutSeconds`|Timeout in seconds before initiating shutdown (grace period)|`300`|
+|`Config:GpioPin`|GPIO Pin to monitor, when falling, the countdown is initated|`-1`|
 
 Other environment variables regarding logging are available with the `Logging` prefix. For more information see [Microsoft Documentation](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/logging/?view=aspnetcore-3.0#create-filter-rules-in-configuration)
 

@@ -4,12 +4,13 @@ namespace Net.Bluewalk.VMware.AutoShutdown.Models
     {
         public Mqtt Mqtt { get; set; }
         public Esxi Esxi { get; set; }
-
         public int TimeoutSeconds { get; set; }
+        public int GpioPin { get; set; }
 
         public Config()
         {
             TimeoutSeconds = 300;
+            GpioPin = -1;
 
             Mqtt = new Mqtt
             {

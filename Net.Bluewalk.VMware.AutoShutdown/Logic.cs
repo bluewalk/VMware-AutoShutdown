@@ -1,4 +1,6 @@
 using System;
+using System.Device.Gpio;
+using System.Device.Gpio.Drivers;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,12 +15,13 @@ using Timer = System.Timers.Timer;
 
 namespace Net.Bluewalk.VMware.AutoShutdown
 {
-    public class Logic : IHostedService
+    public class Logic : IHostedService, IDisposable
     {
         private readonly Config _config;
         private readonly IManagedMqttClient _mqttClient;
         private readonly Timer _timeoutTimer;
         private readonly ILogger _logger;
+        private readonly GpioController _gpioController;
 
         /// <summary>
         /// Constructor
@@ -83,6 +86,8 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 proc.BeginErrorReadLine();
                 proc.WaitForExit();
             };
+
+            _gpioController = new GpioController(PinNumberingScheme.Board, new SysFsDriver());
         }
 
         /// <summary>
@@ -97,12 +102,18 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 StringComparison.InvariantCultureIgnoreCase)) return;
 
             var message = e.ApplicationMessage.ConvertPayloadToString();
-            if (message.Equals(_config.Mqtt.ShutdownPayload, StringComparison.InvariantCultureIgnoreCase))
+            await ControlCountdown(message.Equals(_config.Mqtt.ShutdownPayload,
+                StringComparison.InvariantCultureIgnoreCase));
+        }
+
+        private async Task ControlCountdown(bool enabled)
+        {
+            if (enabled && !_timeoutTimer.Enabled)
             {
                 await Report("SHUTDOWN_COUNTDOWN_INITIATED");
                 _timeoutTimer.Start();
             }
-            else
+            else if (!enabled && _timeoutTimer.Enabled)
             {
                 await Report("SHUTDOWN_COUNTDOWN_ABORTED");
                 _timeoutTimer.Stop();
@@ -150,6 +161,29 @@ namespace Net.Bluewalk.VMware.AutoShutdown
 
             _logger.LogInformation("Connecting to MQTT");
             await _mqttClient.StartAsync(managedOptions.Build());
+
+            if (_config.GpioPin > 0)
+            {
+                _logger.LogInformation("Checking GPIO {0}", _config.GpioPin);
+
+                if (!_gpioController.IsPinModeSupported(_config.GpioPin, PinMode.InputPullDown))
+                {
+                    _logger.LogError("GPIO {0} PinMode InputPullDown is not supported", _config.GpioPin);
+                    return;
+                }
+
+                _logger.LogInformation("Attaching event to GPIO {0}", _config.GpioPin);
+
+                _gpioController.SetPinMode(_config.GpioPin, PinMode.InputPullDown);
+                _gpioController.RegisterCallbackForPinValueChangedEvent(_config.GpioPin,
+                    PinEventTypes.Falling | PinEventTypes.Rising,
+                    async (sender, args) =>
+                    {
+                        _logger.LogInformation("GPIO Pin value is {0}", args.ChangeType.ToString());
+
+                        await ControlCountdown(args.ChangeType == PinEventTypes.Falling);
+                    });
+            }
         }
 
         /// <summary>
@@ -168,7 +202,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         /// </summary>
         public void Dispose()
         {
-
+            _gpioController.Dispose();
         }
     }
 }

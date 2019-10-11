@@ -1,10 +1,7 @@
 {
   "profiles": {
     "Net.Bluewalk.VMware.AutoShutdown": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "Logging:Console:LogLevel:Net.Bluewalk": "Debug"
-      }
+      "commandName": "Project"
     }
   }
 }
