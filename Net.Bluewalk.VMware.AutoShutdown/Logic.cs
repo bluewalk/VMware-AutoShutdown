@@ -64,7 +64,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 {
                     StartInfo = new ProcessStartInfo()
                     {
-                        Arguments = "-c shutdown.ps1",
+                        Arguments = "-c /app/shutdown.ps1",
                         EnvironmentVariables =
                         {
                             {"esxiusername", _config.Esxi.Username},
@@ -82,6 +82,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 proc.OutputDataReceived += (o, eventArgs) => _logger.LogInformation(eventArgs.Data);
                 proc.ErrorDataReceived += (o, eventArgs) => _logger.LogError(eventArgs.Data);
 
+                proc.Start();
                 proc.BeginOutputReadLine();
                 proc.BeginErrorReadLine();
                 proc.WaitForExit();
