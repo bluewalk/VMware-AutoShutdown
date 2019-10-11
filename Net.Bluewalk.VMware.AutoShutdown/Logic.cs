@@ -88,9 +88,31 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 proc.WaitForExit();
             };
 
-            _gpioController = new GpioController(PinNumberingScheme.Board, new SysFsDriver());
-        }
+            if (_config.GpioPin > 0)
+            {
+                _gpioController = new GpioController(PinNumberingScheme.Board, new SysFsDriver());
+                _logger.LogInformation("Checking GPIO {0}", _config.GpioPin);
 
+                if (!_gpioController.IsPinModeSupported(_config.GpioPin, PinMode.InputPullDown))
+                {
+                    _logger.LogError("GPIO {0} PinMode InputPullDown is not supported", _config.GpioPin);
+                    return;
+                }
+
+                _logger.LogInformation("Attaching event to GPIO {0}", _config.GpioPin);
+
+                _gpioController.SetPinMode(_config.GpioPin, PinMode.InputPullDown);
+                _gpioController.RegisterCallbackForPinValueChangedEvent(_config.GpioPin,
+                    PinEventTypes.Falling | PinEventTypes.Rising,
+                    async (sender, args) =>
+                    {
+                        _logger.LogInformation("GPIO Pin value is {0}", args.ChangeType.ToString());
+
+                        await ControlCountdown(args.ChangeType == PinEventTypes.Falling);
+                    });
+            }
+        }
+        
         /// <summary>
         /// Process MQTT messages
         /// </summary>
@@ -162,29 +184,6 @@ namespace Net.Bluewalk.VMware.AutoShutdown
 
             _logger.LogInformation("Connecting to MQTT");
             await _mqttClient.StartAsync(managedOptions.Build());
-
-            if (_config.GpioPin > 0)
-            {
-                _logger.LogInformation("Checking GPIO {0}", _config.GpioPin);
-
-                if (!_gpioController.IsPinModeSupported(_config.GpioPin, PinMode.InputPullDown))
-                {
-                    _logger.LogError("GPIO {0} PinMode InputPullDown is not supported", _config.GpioPin);
-                    return;
-                }
-
-                _logger.LogInformation("Attaching event to GPIO {0}", _config.GpioPin);
-
-                _gpioController.SetPinMode(_config.GpioPin, PinMode.InputPullDown);
-                _gpioController.RegisterCallbackForPinValueChangedEvent(_config.GpioPin,
-                    PinEventTypes.Falling | PinEventTypes.Rising,
-                    async (sender, args) =>
-                    {
-                        _logger.LogInformation("GPIO Pin value is {0}", args.ChangeType.ToString());
-
-                        await ControlCountdown(args.ChangeType == PinEventTypes.Falling);
-                    });
-            }
         }
 
         /// <summary>
@@ -203,7 +202,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         /// </summary>
         public void Dispose()
         {
-            _gpioController.Dispose();
+            _gpioController?.Dispose();
         }
     }
 }
