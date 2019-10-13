@@ -4,7 +4,6 @@ namespace Net.Bluewalk.VMware.AutoShutdown.Models
     {
         public Mqtt Mqtt { get; set; }
         public Esxi Esxi { get; set; }
-
         public int TimeoutSeconds { get; set; }
 
         public Config()
@@ -18,11 +17,6 @@ namespace Net.Bluewalk.VMware.AutoShutdown.Models
                 ReportTopic = "bluewalk/shutdown/report",
                 ShutdownTopic = "bluewalk/shutdown",
                 ShutdownPayload = "yes"
-            };
-
-            Esxi = new Esxi
-            {
-                Timeout = "300"
             };
         }
     }
