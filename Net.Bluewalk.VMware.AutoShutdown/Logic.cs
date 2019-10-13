@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -9,6 +9,7 @@ using MQTTnet;
 using MQTTnet.Client.Options;
 using MQTTnet.Extensions.ManagedClient;
 using Net.Bluewalk.VMware.AutoShutdown.Models;
+using Renci.SshNet;
 using Timer = System.Timers.Timer;
 
 namespace Net.Bluewalk.VMware.AutoShutdown
@@ -19,14 +20,16 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         private readonly IManagedMqttClient _mqttClient;
         private readonly Timer _timeoutTimer;
         private readonly ILogger _logger;
+        private readonly IHostEnvironment _hostEnvironment;
 
         /// <summary>
         /// Constructor
         /// </summary>
-        public Logic(ILogger<Logic> logger, IOptions<Config> config)
+        public Logic(ILogger<Logic> logger, IOptions<Config> config, IHostEnvironment hostEnvironment)
         {
             _logger = logger;
             _config = config.Value;
+            _hostEnvironment = hostEnvironment;
 
             _mqttClient = new MqttFactory().CreateManagedMqttClient();
             _mqttClient.UseApplicationMessageReceivedHandler(MqttClientOnApplicationMessageReceived);
@@ -54,35 +57,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
             {
                 _timeoutTimer.Stop();
 
-                await Report("SHUTDOWN_INITIATED");
-
-                _logger.LogInformation("Starting VMware PowerCLI shutdown script");
-                var proc = new Process()
-                {
-                    StartInfo = new ProcessStartInfo()
-                    {
-                        Arguments = "-c /app/shutdown.ps1",
-                        EnvironmentVariables =
-                        {
-                            {"esxiusername", _config.Esxi.Username},
-                            {"esxipassword", _config.Esxi.Password},
-                            {"esxiip", _config.Esxi.Ip},
-                            {"esxitimeout", _config.Esxi.Timeout},
-                            {"esxivmnametoskip", _config.Esxi.VmNameToSkip}
-                        },
-                        FileName = "/usr/bin/pwsh",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false
-                    }
-                };
-                proc.OutputDataReceived += (o, eventArgs) => _logger.LogInformation(eventArgs.Data);
-                proc.ErrorDataReceived += (o, eventArgs) => _logger.LogError(eventArgs.Data);
-
-                proc.Start();
-                proc.BeginOutputReadLine();
-                proc.BeginErrorReadLine();
-                proc.WaitForExit();
+                InitiateShutdown();
             };
         }
 
@@ -118,6 +93,65 @@ namespace Net.Bluewalk.VMware.AutoShutdown
             {
                 await Report("SHUTDOWN_COUNTDOWN_ABORTED");
                 _timeoutTimer.Stop();
+            }
+        }
+
+        /// <summary>
+        /// Initiate shutdown
+        /// </summary>
+        private async void InitiateShutdown()
+        {
+            await Report("SHUTDOWN_INITIATED");
+
+            // Keyboard auth for ESXi server
+            var kbAuth = new KeyboardInteractiveAuthenticationMethod(_config.Esxi.Username);
+            kbAuth.AuthenticationPrompt += (sender, args) =>
+            {
+                foreach (var prompt in args.Prompts)
+                    if (prompt.Request.IndexOf("Password:", StringComparison.InvariantCultureIgnoreCase) != -1)
+                        prompt.Response = _config.Esxi.Password;
+            };
+            var sshInfo = new ConnectionInfo(_config.Esxi.Ip, _config.Esxi.Username, kbAuth);
+
+            // Upload shutdown script
+            _logger.LogInformation("Uploading shutdown script to /tmp");
+            using (var sftp = new SftpClient(sshInfo))
+            {
+                sftp.ErrorOccurred += (sender, args) =>
+                    _logger.LogError(args.Exception, "An error occurred when connecting to ESXi server");
+
+                sftp.Connect();
+                sftp.ChangeDirectory("/tmp");
+
+                await using (var fileStream =
+                    File.OpenRead(Path.Combine(_hostEnvironment.ContentRootPath, "shutdown.sh")))
+                {
+                    sftp.UploadFile(fileStream, "shutdown.sh", true);
+                    _logger.LogInformation("Upload complete");
+                }
+
+                sftp.Disconnect();
+            }
+
+            // Execute shutdown script
+            _logger.LogInformation("Executing shutdown script");
+            using (var sshClient = new SshClient(sshInfo))
+            {
+                sshClient.Connect();
+                if (!sshClient.IsConnected) return;
+
+                using (var cmd = sshClient.CreateCommand("chmod +x /tmp/shutdown.sh && /tmp/shutdown.sh"))
+                {
+                    cmd.Execute();
+
+                    _logger.LogInformation("SSH command> {0}", cmd.CommandText);
+                    _logger.LogInformation("SSH result> '{0}' ({1})", cmd.Result, cmd.ExitStatus);
+
+                    if (cmd.ExitStatus == 0)
+                        await Report("SHUTDOWN_COMPLETED");
+                }
+
+                sshClient.Disconnect();
             }
         }
 
@@ -173,14 +207,6 @@ namespace Net.Bluewalk.VMware.AutoShutdown
         {
             _logger.LogInformation("Disconnecting from MQTT server");
             await _mqttClient?.StopAsync();
-        }
-
-        /// <summary>
-        /// Dispose
-        /// </summary>
-        public void Dispose()
-        {
-
         }
     }
 }
