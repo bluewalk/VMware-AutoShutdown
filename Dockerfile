@@ -1,5 +1,5 @@
 # STAGE01 - Build application and its dependencies
-FROM mcr.microsoft.com/dotnet/core/sdk:3.0 AS build
+FROM mcr.microsoft.com/dotnet/core/sdk:3.0-alpine AS build
 WORKDIR /app
 
 COPY . ./
@@ -12,7 +12,7 @@ RUN dotnet publish -c Release -o ../out
 RUN rm ../out/*.pdb
 
 # STAGE03 - Create the final image
-FROM mcr.microsoft.com/dotnet/core/runtime:3.0 AS runtime
+FROM mcr.microsoft.com/dotnet/core/runtime:3.0-alpine AS runtime
 LABEL Description="VMware AutoShutdown image" \
       Maintainer="Bluewalk"
 
