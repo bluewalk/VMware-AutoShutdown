@@ -8,16 +8,11 @@ I use it to monitor my powerline, upon failure an ESP will publish a payload to 
 ## How to use
 Run the docker image as followed
 ```bash
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...]
+docker run -d --name vmware-auto-shutdown [-e ...] bluewalk/vmware-auto-shutdown
 ```
 You can specify configuration items using environment variables as displayed below, e.g.
 ```
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2
-```
-
-You can alter the `log4net` settings by mapping a local `log4net.config` file to `/app/log4.net.config`, e.g.
-```
-docker run -d --name vmware-auto-shutdown bluewalk/vmware-auto-shutdown [-e ...] -v [configfile]:/app/log4net.config
+docker run -d --name vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config:Mqtt:Host=192.168.1.2 bluewalk/vmware-auto-shutdown
 ```
 
 ## Environment variables

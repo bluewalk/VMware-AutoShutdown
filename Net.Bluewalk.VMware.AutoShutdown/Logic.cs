@@ -61,7 +61,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 {
                     StartInfo = new ProcessStartInfo()
                     {
-                        Arguments = "-c shutdown.ps1",
+                        Arguments = "-c /app/shutdown.ps1",
                         EnvironmentVariables =
                         {
                             {"esxiusername", _config.Esxi.Username},
@@ -79,6 +79,7 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 proc.OutputDataReceived += (o, eventArgs) => _logger.LogInformation(eventArgs.Data);
                 proc.ErrorDataReceived += (o, eventArgs) => _logger.LogError(eventArgs.Data);
 
+                proc.Start();
                 proc.BeginOutputReadLine();
                 proc.BeginErrorReadLine();
                 proc.WaitForExit();
@@ -97,12 +98,23 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 StringComparison.InvariantCultureIgnoreCase)) return;
 
             var message = e.ApplicationMessage.ConvertPayloadToString();
-            if (message.Equals(_config.Mqtt.ShutdownPayload, StringComparison.InvariantCultureIgnoreCase))
+            await ControlCountdown(message.Equals(_config.Mqtt.ShutdownPayload,
+                StringComparison.InvariantCultureIgnoreCase));
+        }
+
+        /// <summary>
+        /// Control the countdown
+        /// </summary>
+        /// <param name="enabled"></param>
+        /// <returns></returns>
+        private async Task ControlCountdown(bool enabled)
+        {
+            if (enabled && !_timeoutTimer.Enabled)
             {
                 await Report("SHUTDOWN_COUNTDOWN_INITIATED");
                 _timeoutTimer.Start();
             }
-            else
+            else if (!enabled && _timeoutTimer.Enabled)
             {
                 await Report("SHUTDOWN_COUNTDOWN_ABORTED");
                 _timeoutTimer.Stop();

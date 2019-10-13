@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,9 @@ namespace Net.Bluewalk.VMware.AutoShutdown
                 {
                     config.AddEnvironmentVariables();
 
+                    if (File.Exists("config.json"))
+                        config.AddJsonFile("config.json", false, true);
+                    
                     if (args != null)
                     {
                         config.AddCommandLine(args);
