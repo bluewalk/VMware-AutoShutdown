@@ -28,8 +28,6 @@ docker run -d --name vmware-auto-shutdown -e Config:TimeoutSeconds=180 -e Config
 |`Config:Esxi:Username`|ESXi username|null|
 |`Config:Esxi:Password`|ESXi password|null|
 |`Config:Esxi:Ip`|ESXi IP address|null|
-|`Config:Esxi:Timeout`|ESXi shutdown VM's timeout, after passing will shutdown host|`300`|
-|`Config:Esxi:VmToSkip`|ESXi VM's to skip during shutdown|null|
 |`Config:TimeoutSeconds`|Timeout in seconds before initiating shutdown (grace period)|`300`|
 
 Other environment variables regarding logging are available with the `Logging` prefix. For more information see [Microsoft Documentation](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/logging/?view=aspnetcore-3.0#create-filter-rules-in-configuration)
