@@ -12,13 +12,13 @@ RUN dotnet publish -c Release -o ../out
 RUN rm ../out/*.pdb
 
 # STAGE03 - Create the final image
-FROM bluewalk/vmware-powercli-dotnet-runtime AS runtime
+FROM mcr.microsoft.com/dotnet/core/runtime:3.0 AS runtime
 LABEL Description="VMware AutoShutdown image" \
       Maintainer="Bluewalk"
 
 WORKDIR /app
 COPY --from=publish /app/out ./
-COPY shutdown.ps1 ./
+COPY shutdown.sh ./
 
 #ENTRYPOINT ["dotnet", "Net.Bluewalk.VMware.AutoShutdown.dll"]
 CMD ["dotnet", "Net.Bluewalk.VMware.AutoShutdown.dll"]
